@@ -1,0 +1,32 @@
+{
+  "name": "cluster-x",
+  "version": "1.0.0",
+  "description": "Package to work with Node.js cluster module.",
+  "main": "src/main.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bartek-890/cluster-x.git"
+  },
+  "keywords": [
+    "cluster",
+    "nodejs"
+  ],
+  "author": "Bartlomiej Krupa",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bartek-890/cluster-x/issues"
+  },
+  "homepage": "https://github.com/bartek-890/cluster-x#readme",
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "yaml": "^1.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.2.3",
+    "ts-node": "^9.1.1",
+    "@types/node": "^14.14.33"
+  }
+}
