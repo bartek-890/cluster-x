@@ -1,14 +1,21 @@
-import {ClusterManagerConfig, IWorkerCreator} from "./interfaces/interfaces";
-import * as cluster from "cluster";
-import {log} from "./helpers/console-log-customs";
-import {readYamlConfiguration} from "./helpers/utils";
-import {worker} from "cluster";
+import cluster, { worker } from 'cluster';
+import { log } from './helpers/console-log-customs';
+import { ClusterManagerConfig, IWorkerCreator, ClusterCommunicator } from './interfaces/interfaces';
+import { readYamlConfiguration, sendToMainThread } from './helpers/utils';
+import _ from 'lodash';
 
+/**
+ * Based on cluster API https://nodejs.org/api/cluster.html
+ * This one can start separate process called workers which can run callback in asynchronous way
+ */
 class WorkerCreator implements IWorkerCreator {
     _runningServicesCount: number;
     _configuration: ClusterManagerConfig = {} as any;
     _queue: string[] = [];
     _runningService: string;
+    // Should add type (worker)
+    _runningWorkers: number[] = [];
+    _gen: Generator;
     main: () => Promise<void>;
 
     constructor(beforeStart: () => Promise<void>, main: () => Promise<any>) {
@@ -42,6 +49,12 @@ class WorkerCreator implements IWorkerCreator {
          * TODO: Make it as another method where you can make specified logic for all configuration fields in file.
          */
         this.setConfig();
+
+        /**
+         * Additional mechanisms
+         * gen is Generator function that check service and queue.
+         */
+        this._gen = this.queueManager();
 
         /**
          * @access only to master process
@@ -89,20 +102,60 @@ class WorkerCreator implements IWorkerCreator {
      */
     async createWorker(): Promise<void> {
         if (this._runningServicesCount < this._configuration.workerLimit) {
-            await this.queueManager();
+            console.log(this._runningWorkers.length);
 
             // Pass env variables to new worker process and create it.
-            cluster.fork(this._configuration.env);
+            if (this._gen.next().done) {
+                log.info('Finished worked, empty queue. Cluster will be terminated...');
+                process.exit(0);
+            }
+
+            const worker = cluster.fork(this._configuration.env);
+
+            // Read any messages by master process
+            this.messageReader(worker);
+
+            // Counter to control number of processes.
             this._runningServicesCount++;
         } else {
             log.info(`FULL QUEUE: running-${this._runningServicesCount} limit-${this._configuration.workerLimit}`);
         }
     }
 
-    async queueManager(): Promise<void> {
-        const service = this._queue.pop();
-        this._queue.unshift(service);
-        this._configuration.env.SCRAPER = service;
+    async setService(): Promise<void> {
+        // Take last
+        this._runningService = this._queue.pop();
+        this._configuration.env.SCRAPER = this._runningService;
+        if (this._configuration.loop) {
+            // Add first
+            this._queue.unshift(this._runningService);
+        }
+    }
+
+    *queueManager(): Generator {
+        while (this._queue.length > 0) {
+            yield this.setService();
+        }
+    }
+
+    messageReader(worker): void {
+        worker.on('message', async (communicator: ClusterCommunicator) => {
+            if (communicator.message) {
+                console.log(communicator.message);
+            }
+
+            /**
+             * Here you can handle all action sent to master process by any worker.
+             */
+            switch (communicator.actions) {
+                case 'check-queue':
+                    break;
+                case 'handle-error':
+                    break;
+                case 'unhandled-exception':
+                    break;
+            }
+        });
     }
 
     configureEventHandlers(): void {
@@ -110,6 +163,14 @@ class WorkerCreator implements IWorkerCreator {
          * Event when you forked new worker.
          */
         cluster.on('fork', async (worker) => {
+            // Add it to array with currently working workers.
+            this._runningWorkers.push(worker.id);
+
+            // If there is no loop option prevent for create workers with empty queue.
+            if (this._queue.length === 0) {
+                return;
+            }
+
             await this.createWorker();
             log.process(`The worker #${worker.id} is being created. Process pid ${worker.process.pid}.`);
         });
@@ -131,7 +192,13 @@ class WorkerCreator implements IWorkerCreator {
                 log.process(`The worker #${worker.id} done his job. Process pid ${worker.process.pid}`);
             }
 
+            _.remove(this._runningWorkers, (element: number) => {
+                return element === worker.id;
+            });
+            log.standard(`Current queue length in exit: ${this._queue.length}`);
+
             this._runningServicesCount--;
+
             await this.createWorker();
         });
     }
@@ -154,11 +221,16 @@ class WorkerCreator implements IWorkerCreator {
         }
     }
 
+    /**
+     * Load all configuration.
+     * Also queue.
+     */
     setConfig(): void {
         try {
             const config = readYamlConfiguration(`cluster-config.yml`);
             this._queue = config['QUEUE'];
             this._configuration.args = config['ARGS'];
+            this._configuration.loop = config['LOOP'];
             this._configuration.env = config['ENV_VARIABLES'];
             this._configuration.silentMode = config['SILENT_MODE'];
             this._configuration.workerLimit = config['WORKER_LIMIT'];
@@ -174,8 +246,9 @@ class WorkerCreator implements IWorkerCreator {
      */
     async startJob(): Promise<void> {
         try {
+            //await getGridkyAuth();
             await this.main();
-            worker.kill();
+            await worker.kill();
         } catch (e) {
             throw e;
         }

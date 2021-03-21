@@ -4,6 +4,7 @@ export interface ClusterManagerConfig {
     args: string[];
     silentMode: boolean;
     beforeStart?: () => Promise<void>;
+    loop: boolean;
 }
 
 export interface IWorkerCreator {
@@ -23,4 +24,10 @@ export interface ClusterActualState {
     running: number;
     services: string[];
     workerId: any;
+}
+
+type ClusterActions = 'check-queue' | 'handle-error' | 'unhandled-exception';
+export interface ClusterCommunicator {
+    actions?: ClusterActions;
+    message?: string;
 }
