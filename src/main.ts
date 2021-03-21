@@ -227,7 +227,8 @@ class WorkerCreator implements IWorkerCreator {
      */
     setConfig(): void {
         try {
-            const config = readYamlConfiguration(`cluster-config.yml`);
+            console.log(`./examples/cluster-config.yml`);
+            const config = readYamlConfiguration(`./examples/cluster-config.yml`);
             this._queue = config['QUEUE'];
             this._configuration.args = config['ARGS'];
             this._configuration.loop = config['LOOP'];
@@ -248,7 +249,7 @@ class WorkerCreator implements IWorkerCreator {
         try {
             //await getGridkyAuth();
             await this.main();
-            await worker.kill();
+            worker.kill();
         } catch (e) {
             throw e;
         }
