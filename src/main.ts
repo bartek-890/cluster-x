@@ -92,7 +92,7 @@ class WorkerCreator implements IWorkerCreator {
             await this.queueManager();
 
             // Pass env variables to new worker process and create it.
-            await cluster.fork(this._configuration.env);
+            cluster.fork(this._configuration.env);
             this._runningServicesCount++;
         } else {
             log.info(`FULL QUEUE: running-${this._runningServicesCount} limit-${this._configuration.workerLimit}`);
@@ -100,8 +100,8 @@ class WorkerCreator implements IWorkerCreator {
     }
 
     async queueManager(): Promise<void> {
-        const service = await this._queue.pop();
-        await this._queue.unshift(service);
+        const service = this._queue.pop();
+        this._queue.unshift(service);
         this._configuration.env.SCRAPER = service;
     }
 
@@ -175,7 +175,7 @@ class WorkerCreator implements IWorkerCreator {
     async startJob(): Promise<void> {
         try {
             await this.main();
-            await worker.kill();
+            worker.kill();
         } catch (e) {
             throw e;
         }
