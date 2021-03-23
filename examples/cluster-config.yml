@@ -1,8 +1,0 @@
-ARGS: []
-ENV_VARIABLES: {}
-WORKER_LIMIT: 4
-SILENT_MODE: false
-LOOP: false
-QUEUE:
-  - 'task1'
-  - 'task2'
