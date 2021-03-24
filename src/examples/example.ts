@@ -1,4 +1,4 @@
-import WorkerCreator from "../src/main";
+import WorkerCreator from "../main";
 
 const clusters = new WorkerCreator(
   async () => {
